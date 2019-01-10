@@ -16,3 +16,8 @@ app.get('/someUrl', (req, res, next) => {
 
 app.listen(8080, cb)
 ```
+
+## Supported
+* app.{get,put,post,patch,delete}
+* body parsing: querystrings and JSON
+* static file hosting
