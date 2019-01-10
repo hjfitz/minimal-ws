@@ -12,23 +12,23 @@ const bodyParser = {
 }
 
 const collectRequestData = req => new Promise(resolve => {
-	let body = '';
+	let body = ''
 	req.on('data', chunk => {
-		body += chunk.toString();
-	});
+		body += chunk.toString()
+	})
 	req.on('end', () => {
-		resolve(bodyParser[req.method](body));
-	});
+		resolve(bodyParser[req.method](body))
+	})
 })
 
 const useStatic = absolute => {
-	if (!fs.existsSync(absolute)) throw new Error("folder doesn't exist!");
+	if (!fs.existsSync(absolute)) throw new Error("folder doesn't exist!")
 	return (req, res, next) => {
-		const resourcePath = path.join(absolute, req.url);
-		d(`Attempting to retrieve for ${req.url}`);
-		d(resourcePath);
-		if (!fs.existsSync(resourcePath) || fs.lstatSync(resourcePath).isDirectory()) return next();
-		res.sendFile(resourcePath);
+		const resourcePath = path.join(absolute, req.url)
+		d(`Attempting to retrieve for ${req.url}`)
+		d(resourcePath)
+		if (!fs.existsSync(resourcePath) || fs.lstatSync(resourcePath).isDirectory()) return next()
+		res.sendFile(resourcePath)
 	}
 }
 
@@ -68,5 +68,6 @@ module.exports = () => ({
 	patch: router.patch.bind(router),
 	delete: router.delete.bind(router),
 	listen: server.listen.bind(server),
-	useStatic
+	useStatic,
+	server
 })
