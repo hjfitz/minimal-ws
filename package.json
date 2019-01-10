@@ -4,6 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "mime-types": "^2.1.21",
     "trouter": "^2.0.1"
   }
 }

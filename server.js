@@ -1,14 +1,18 @@
 const http = require('http')
 const qs = require('querystring')
 const Trouter = require('trouter')
+const mimeTypes = require('mime-types')
 const fs = require('fs')
 const path = require('path')
 
 const router = new Trouter()
 
-const bodyParser = {
-	'application/json': JSON.parse,
-	'application/x-www-form-urlencoded': qs.parse
+const bodyParser = header => {
+	switch(header) {	
+		case 'application/json': return JSON.parse
+		case 'application/x-www-form-urlencoded': return qs.parse
+		default: return () => {}
+	}
 }
 
 const collectRequestData = req => new Promise(resolve => {
@@ -17,19 +21,19 @@ const collectRequestData = req => new Promise(resolve => {
 		body += chunk.toString()
 		if (body.length > 1e6) req.connection.destroy() // die if too big
 	})
-	req.on('end', () => {
-		resolve(bodyParser[req.method](body))
-	})
+	req.on('end', () => resolve(bodyParser(req.headers['content-type'])(body)))
 })
 
 const useStatic = absolute => {
 	if (!fs.existsSync(absolute)) throw new Error("folder doesn't exist!")
 	return (req, res, next) => {
 		const resourcePath = path.join(absolute, req.url)
-		d(`Attempting to retrieve for ${req.url}`)
-		d(resourcePath)
 		if (!fs.existsSync(resourcePath) || fs.lstatSync(resourcePath).isDirectory()) return next()
-		res.sendFile(resourcePath)
+		fs.readFile(resourcePath, (err, data) => {
+			if (err) return res.err(err)
+			const type = mimeTypes.lookup(resourcePath)
+			res.send(data.toString(), 200, type)
+		})
 	}
 }
 
@@ -40,17 +44,12 @@ const server = http.createServer(async (req, res) => {
 		res.end()
 	}
 
-	req.body = await collectRequestData(req).catch(res.err)
+	req.body = await collectRequestData(req)
+	console.log(await collectRequestData(req))
 	
 	res.err = (err) => res.send(`error with request:\n${err}`, 500)
 
-	res.json = (data) => {
-		try {
-			res.send(JSON.stringify(data), 200, 'application/json')
-		} catch (err) {
-			res.err(err)
-		}
-	}
+	res.json = (data) => res.send(JSON.stringify(data), 200, 'application/json')
 
 	const mw = router.find(req.method, req.url)
 	if (mw) {

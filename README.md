@@ -6,9 +6,10 @@
 2. Create a server:
 ```js
 const mws = require('minimal-ws')
+const path = require('path')
 const app = mws()
 
-app.use('public', mws.useStatic('public'))
+app.use('/public', mws.useStatic(path.join(__dirname, 'public')))
 
 app.get('/someUrl', (req, res, next) => {
 	res.send('henlo stinky')
