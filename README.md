@@ -8,7 +8,7 @@
 const mws = require('minimal-ws')
 const app = mws()
 
-app.use('public', app.useStatic('public'))
+app.use('public', mws.useStatic('public'))
 
 app.get('/someUrl', (req, res, next) => {
 	res.send('henlo stinky')

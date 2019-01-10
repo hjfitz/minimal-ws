@@ -72,6 +72,7 @@ module.exports = () => ({
 	patch: router.patch.bind(router),
 	delete: router.delete.bind(router),
 	listen: server.listen.bind(server),
-	useStatic,
 	server
 })
+
+module.exports.useStatic = useStatic
