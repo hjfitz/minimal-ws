@@ -15,6 +15,7 @@ const collectRequestData = req => new Promise(resolve => {
 	let body = ''
 	req.on('data', chunk => {
 		body += chunk.toString()
+		if (body.length > 1e6) req.connection.destroy() // die if too big
 	})
 	req.on('end', () => {
 		resolve(bodyParser[req.method](body))
@@ -33,26 +34,29 @@ const useStatic = absolute => {
 }
 
 const server = http.createServer(async (req, res) => {
-	req.body = await collectRequestData(req)
-	res.setStatus = (code) => {
-		res.status = code
-		return res
-	}
-	res.send = (data) => {
+	res.send = (data, code=200, contentType='text/plain') => {
+		res.writeHead(code, { 'Content-Type': contentType })
 		res.write(data)
 		res.end()
 	}
 
-	res.json = (data, code=200) => {
-		const parsed = JSON.stringify(data)
-		res.writeHead(code, { 'Content-Type': 'application/json' })
-		res.send(parsed)
+	req.body = await collectRequestData(req).catch(res.err)
+	
+	res.err = (err) => res.send(`error with request:\n${err}`, 500)
+
+	res.json = (data) => {
+		try {
+			res.send(JSON.stringify(data), 200, 'application/json')
+		} catch (err) {
+			res.err(err)
+		}
 	}
+
 	const mw = router.find(req.method, req.url)
 	if (mw) {
-		const cloned = [...mw.handlers]
-		const next = () => cloned.pop()(req, res, next)
-		next()
+		// maintain memory address for cloned mw stack
+		const next = (clones) => clones.pop()(req, res, next)
+		next([...mw.handlers])
 	} else {
 		res.statusCode = 404
 		res.send(`can't ${req.method} on ${req.url}`)
