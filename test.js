@@ -1,8 +1,11 @@
 const serv = require('./server')
 const server = serv()
 
-server.use('*', serv.useStatic('public'))
-server.get('/', (req, res) => res.send('oi'))
+server.get('/', (req, res, next) => {
+	console.log('first')
+	next()
+})
+server.get('/', (req, res) => res.send('yep'))
 server.post('/', (req, res) => {
 	res.send(req.body)
 })

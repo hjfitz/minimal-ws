@@ -1,9 +1,7 @@
 const http = require('http')
 const qs = require('querystring')
 const Trouter = require('trouter')
-const mimeTypes = require('mime-types')
-const fs = require('fs')
-const path = require('path')
+const url = require('url')
 
 const router = new Trouter()
 
@@ -24,19 +22,6 @@ const collectRequestData = req => new Promise(resolve => {
 	req.on('end', () => resolve(bodyParser(req.headers['content-type'])(body)))
 })
 
-const useStatic = absolute => {
-	if (!fs.existsSync(absolute)) throw new Error("folder doesn't exist!")
-	return (req, res, next) => {
-		const resourcePath = path.join(absolute, req.url)
-		if (!fs.existsSync(resourcePath) || fs.lstatSync(resourcePath).isDirectory()) return next()
-		fs.readFile(resourcePath, (err, data) => {
-			if (err) return res.err(err)
-			const type = mimeTypes.lookup(resourcePath)
-			res.send(data.toString(), 200, type)
-		})
-	}
-}
-
 const server = http.createServer(async (req, res) => {
 	res.send = (data, code=200, contentType='text/plain') => {
 		res.writeHead(code, { 'Content-Type': contentType })
@@ -45,33 +30,40 @@ const server = http.createServer(async (req, res) => {
 	}
 
 	req.body = await collectRequestData(req)
-	console.log(await collectRequestData(req))
+	const { query, pathname } = url.parse(req.url)
+	if (query) req.body = Object.assign(req.body || {}, qs.parse(query))
 	
 	res.err = (err) => res.send(`error with request:\n${err}`, 500)
-
 	res.json = (data) => res.send(JSON.stringify(data), 200, 'application/json')
 
-	const mw = router.find(req.method, req.url)
-	if (mw) {
-		// maintain memory address for cloned mw stack
-		const next = (clones) => clones.pop()(req, res, next)
-		next([...mw.handlers])
-	} else {
-		res.statusCode = 404
-		res.send(`can't ${req.method} on ${req.url}`)
-	}
+	const mw = router.find(req.method, pathname) //|| { handlers: [] }
+	const handlers = mws[req.method][pathname]
+	// maintain memory address for cloned mw stack
+	const next = (clones) => clones.shift()(req, res, () => next(clones))
+	next([...mw.handlers, (req, res) => res.send(`can't ${req.method} on ${req.url}`, 404)])
+})
+
+const mws = {}
+
+const add = (method, url, mw) => {
+	if (!(method in mws)) mws[method] = {};
+	(!(url in mws[method])) ? mws[method][url] = [mw] : mws[method][url].push(mw)
+}
+
+server.on("listening", () => {
+	Object.keys(mws).forEach((method) => {
+		Object.keys(mws[method]).forEach((url) => router.add(method, url, ...mws[method][url]))
+	})
 })
 
 
 module.exports = () => ({
 	use: router.all.bind(router),
-	get: router.get.bind(router),
-	put: router.put.bind(router),
-	post: router.post.bind(router),
-	patch: router.patch.bind(router),
-	delete: router.delete.bind(router),
+	get: (url, mw) => add('GET', url, mw),
+	put: (url, mw) => add('PUT', url, mw),
+	post: (url, mw) => add('POST', url, mw),
+	patch: (url, mw) => add('PATCH', url, mw),
+	delete: (url, mw) => add('DELETE', url, mw),
 	listen: server.listen.bind(server),
 	server
 })
-
-module.exports.useStatic = useStatic
